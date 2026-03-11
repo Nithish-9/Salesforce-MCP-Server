@@ -1,0 +1,67 @@
+name: Build and Release JAR
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-and-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Cache Maven Dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.m2/repository
+          key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
+          restore-keys: |
+            ${{ runner.os }}-maven-
+      - name: Build JAR
+        run: mvn clean package -DskipTests
+      - name: Get Version
+        id: get_version
+        run: |
+          VERSION=$(mvn help:evaluate \
+            -Dexpression=project.version \
+            -q -DforceStdout)
+          echo "VERSION=$VERSION" >> $GITHUB_OUTPUT
+          echo "Built version: $VERSION"
+      - name: Delete Old Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release delete latest --yes || true
+          git push origin --delete latest || true
+      - name: Create Release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create latest \
+            target/salesforce-mcp-server.jar \
+            --title "Salesforce MCP Server - Latest" \
+            --notes "## Salesforce MCP Server
+
+          ### What's New
+          - Built from commit: ${{ github.sha }}
+          - Branch: ${{ github.ref_name }}
+          - Version: ${{ steps.get_version.outputs.VERSION }}
+          - Built at: $(date -u '+%Y-%m-%d %H:%M:%S UTC')
+
+          ### How to Run
+          \`\`\`bash
+          java -jar salesforce-mcp-server.jar
+          \`\`\`
+
+          ### Requirements
+          - Java 21+
+          - Salesforce CLI installed
+          " \
+            --latest
