@@ -154,4 +154,27 @@ public class OrgManagementTools {
             return commonUtils.buildError("Failed to disconnect", e.getMessage());
         }
     }
+
+    @Tool(
+            name = "execute_sfdx_cli_commands",
+            description = "Execute Salesforce CLI commands except delete or destructive operations"
+    )
+    public String executeSFDXCLICommands(String command) {
+        try {
+            String lowerCommand = command.toLowerCase();
+            if (lowerCommand.contains("delete") ||
+                    lowerCommand.contains("remove") ||
+                    lowerCommand.contains("destroy") ||
+                    lowerCommand.contains("purge")) {
+
+                return commonUtils.buildError("Operation not allowed", "Destructive CLI commands are blocked");
+            }
+            log.info("Executing command: {}", command);
+            String[] args = command.split(" ");
+            return cliExecutor.execute(args);
+        } catch (Exception e) {
+            log.error("CLI execution failed: {}", e.getMessage());
+            return commonUtils.buildError("CLI execution failed",e.getMessage());
+        }
+    }
 }
